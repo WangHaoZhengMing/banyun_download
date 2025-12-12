@@ -233,7 +233,7 @@ async def main() -> int:
         os.makedirs(directory, exist_ok=True)
     
     # 配置参数
-    start_page: int = 33
+    start_page: int = 43
     end_page: int = 466
     debug_port: int = 2001
     total_success: int = 0
