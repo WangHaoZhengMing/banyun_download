@@ -1,0 +1,16 @@
+[project]
+name = "banyun-download"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncio>=4.0.0",
+    "openai>=2.7.1",
+    "playwright>=1.55.0",
+    "toml>=0.10.2",
+    "beautifulsoup4>=4.12.3",
+    "slint>=1.14.1b1",
+    "cos-python-sdk-v5>=1.9.39",
+    "tomli-w>=1.2.0",
+]
