@@ -12,7 +12,7 @@ def open_edge_window(port, url, user_data_dir):
     ])
 
 # 创建不同的用户数据目录
-base_user_data_dir = r"C:\Users\hallm\AppData\Local\Microsoft\Edge\User Data"
+base_user_data_dir = os.path.join(os.environ['USERPROFILE'], r"AppData\Local\Microsoft\Edge\User Data")
 
 # 启动多个窗口，使用不同的调试端口和用户数据目录
 open_edge_window(2001, "https://e2api.staff.xdf.cn/e2/dingdingqr?returnUrl=https%3A%2F%2Ftps-tiku.staff.xdf.cn%2F&e2clientid=20004", os.path.join(base_user_data_dir, "Profile1"))
