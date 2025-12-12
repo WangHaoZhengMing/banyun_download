@@ -113,11 +113,12 @@ async def process_single_paper(
     Returns:
         Result[ProcessResult]: (处理结果, 错误信息)
     """
+    paper_browser: Optional[Browser] = None
     paper_page: Optional[Page] = None
     
     try:
         # 连接到试卷页面
-        _, paper_page = await connect_to_browser_and_page(
+        paper_browser, paper_page = await connect_to_browser_and_page(
             target_url=paper_info.url,
             port=port,
             target_title=""
@@ -151,9 +152,15 @@ async def process_single_paper(
         return (None, error)
         
     finally:
+        # 关闭页面和浏览器，防止内存泄漏
         if paper_page is not None:
             try:
                 await paper_page.close()
+            except Exception:
+                pass
+        if paper_browser is not None:
+            try:
+                await paper_browser.close()
             except Exception:
                 pass
 
