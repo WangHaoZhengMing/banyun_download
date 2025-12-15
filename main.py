@@ -235,6 +235,11 @@ async def process_catalogue_page(
         return (None, error)
         
     finally:
+        if catalogue_page is not None:
+            try:
+                await catalogue_page.close()
+            except Exception:
+                pass
         if catalogue_browser is not None:
             try:
                 await catalogue_browser.close()
