@@ -25,16 +25,43 @@ NOTIFY_API_PATH = "/attachment/batch/upload/files"
 # --- END: 配置区 ---
 
 
-def get_upload_credentials(session, filename):
+async def get_upload_credentials(page, filename):
     """阶段1: 从你的服务器获取腾讯云COS的临时上传凭证。"""
-    print("--- 阶段1: 正在请求上传凭证... ---")
-    url = f"{API_BASE_URL}/attachment/get/credential"
-    payload = {"fileName": filename, "contentType": "application/pdf"}
-    try:
-        response = session.post(url, json=payload)
-        response.raise_for_status()
+    print("--- 阶段1: 正在请求上传凭证 (Via Page Fetch)... ---")
+    
+    js_code = f"""
+    async (filename) => {{
+        const url = "{API_BASE_URL}/attachment/get/credential";
+        const payload = {{
+            fileName: filename,
+            contentType: "application/pdf",
+            storageType: "cos",
+            securityLevel: 1
+        }};
         
-        response_data = response.json()
+        try {{
+            const response = await fetch(url, {{
+                method: "POST",
+                headers: {{
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/plain, */*",
+                    "tikutoken": "732FD8402F95087CD934374135C46EE5"
+                }},
+                credentials: "include",
+                body: JSON.stringify(payload)
+            }});
+            
+            const data = await response.json();
+            return data;
+        }} catch (e) {{
+            console.error("Fetch error:", e);
+            return {{ success: false, message: e.toString() }};
+        }}
+    }}
+    """
+    
+    try:
+        response_data = await page.evaluate(js_code, filename)
         
         if response_data and response_data.get('success'):
             print("✅ 凭证获取成功。")
@@ -44,9 +71,8 @@ def get_upload_credentials(session, filename):
             print("   服务器响应:", response_data)
             return None
             
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
         print(f"❌ 错误: 获取凭证失败: {e}")
-        print("   服务器响应:", e.response.text if e.response else "无响应")
         return None
 
 def upload_to_cos(credentials_data, file_path):
@@ -75,50 +101,67 @@ def upload_to_cos(credentials_data, file_path):
         print(f"❌ 错误: 上传到COS失败: {e}")
         return None
 
-def notify_application_server(session, filename, file_info):
+async def notify_application_server(page, filename, file_info):
     """阶段3: 通知你的服务器上传已完成，并获取处理结果。"""
-    print("\n--- 阶段3: 正在通知应用服务器... ---")
-    url = f"{API_BASE_URL}{NOTIFY_API_PATH}"
+    print("\n--- 阶段3: 正在通知应用服务器 (Via Page Fetch)... ---")
     
-    payload = {
-        "uploadAttachments": [
-            {
-                "fileName": filename,
-                "fileType": "pdf",
-                "fileUrl": file_info['url'],
-                "resourceType": "zbtiku_pc"
-            }
-        ],
-        "fileUploadType": 5,
-        "fileContentType": 1,
-        "paperId": ""
-    }
+    js_code = f"""
+    async (data) => {{
+        const url = "{API_BASE_URL}{NOTIFY_API_PATH}";
+        const payload = {{
+            "uploadAttachments": [
+                {{
+                    "fileName": data.filename,
+                    "fileType": "pdf",
+                    "fileUrl": data.fileUrl,
+                    "resourceType": "zbtiku_pc"
+                }}
+            ],
+            "fileUploadType": 5,
+            "fileContentType": 1,
+            "paperId": ""
+        }};
+        
+        try {{
+            const response = await fetch(url, {{
+                method: "POST",
+                headers: {{
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/plain, */*",
+                    "tikutoken": "732FD8402F95087CD934374135C46EE5"
+                }},
+                credentials: "include",
+                body: JSON.stringify(payload)
+            }});
+            
+            const resData = await response.json();
+            return resData;
+        }} catch (e) {{
+            console.error("Fetch error:", e);
+            return {{ success: false, message: e.toString() }};
+        }}
+    }}
+    """
     
-    print(f"   请求URL: {url}")
-    print("   请求Payload (部分):", json.dumps(payload, indent=2, ensure_ascii=False))
-
     try:
-        response = session.post(url, json=payload)
-        response.raise_for_status()
+        data = {"filename": filename, "fileUrl": file_info['url']}
+        response_data = await page.evaluate(js_code, data)
+        
         print("✅ 服务器通知成功，已收到返回数据。")
-        return response.json()
-    except requests.exceptions.RequestException as e:
+        return response_data
+    except Exception as e:
         print(f"❌ 错误: 通知服务器失败: {e}")
-        print("   服务器响应:", e.response.text if e.response else "无响应")
         return None
 
 
-def upload_pdf(file_path)->str:
+async def upload_pdf(page, file_path)->str:
     if not os.path.exists(file_path):
         print(f"❌ 错误: 文件 '{file_path}' 不存在，请先创建。")
         return
 
-    session = requests.Session()
-    session.headers.update(AUTH_HEADERS)
-
     filename = os.path.basename(file_path)
     
-    credentials = get_upload_credentials(session, filename)
+    credentials = await get_upload_credentials(page, filename)
     if not credentials:
         return
 
@@ -126,7 +169,7 @@ def upload_pdf(file_path)->str:
     if not file_info:
         return
         
-    final_result = notify_application_server(session, filename, file_info)
+    final_result = await notify_application_server(page, filename, file_info)
     if not final_result:
         return
         
@@ -139,15 +182,10 @@ def upload_pdf(file_path)->str:
         print("\n❌ 未能从最终响应中找到 'data' 数组。服务器返回内容如下:")
         print(json.dumps(final_result, indent=2, ensure_ascii=False))
 
-async def save_new_paper(question_page)->str:
-    target_url = ""
-    target_title = "题库平台 | 录排中心"
-    browser: Browser
-    page: Page
-    browser, page = await connect_to_browser_and_page(target_url=target_url, target_title=target_title,port=2001)
+async def save_new_paper(question_page, tiku_page: Page)->str:
     
     payload = await ask_llm_for_playload(question_page.name + question_page.subject + question_page.province)
-    parcial_payload = upload_pdf(f"PDF/{question_page.name}.pdf")
+    parcial_payload = await upload_pdf(tiku_page, f"PDF/{question_page.name}.pdf")
 
     # Properly construct the JSON payload by parsing and merging
     # Remove trailing comma if present to avoid JSON parsing errors
@@ -173,7 +211,7 @@ async def save_new_paper(question_page)->str:
 
     print(f"\n发送的payload: {payload_json}") 
     
-    result = await page.evaluate(f"""
+    result = await tiku_page.evaluate(f"""
         fetch("https://tps-tiku-api.staff.xdf.cn/paper/new/save", {{
         method: "POST",
         headers: {{
@@ -233,7 +271,9 @@ if __name__ == "__main__":
         browser, page = await connect_to_browser_and_page(target_url="https://zujuan.xkw.com/26p2916512.html",port=2001,target_title="")
         page_data = await download_page(page)
 
-        paper_id = await save_new_paper(page_data)
+        # 注意：这里直接使用 page 作为 tiku_page 可能会因为跨域问题失败，
+        # 仅作为测试代码修复参数缺失问题。实际运行时请确保 page 在正确的域。
+        paper_id = await save_new_paper(page_data, page)
         
         # Clean up browser connection to avoid resource warnings
         await browser.close()

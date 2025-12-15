@@ -22,7 +22,8 @@ async def connect_to_browser_and_page(target_url: str,target_title: str, port: i
     p = await async_playwright().start()
     
     # 连接到现有的浏览器实例
-    browser: Browser = await p.chromium.connect_over_cdp(f"http://localhost:{port}")
+    # 使用 127.0.0.1 而不是 localhost，以避免 IPv6 (::1) 解析问题
+    browser: Browser = await p.chromium.connect_over_cdp(f"http://127.0.0.1:{port}")
     
     context: BrowserContext = browser.contexts[0]
     page: Page = None

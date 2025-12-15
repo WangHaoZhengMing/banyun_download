@@ -106,7 +106,8 @@ async def fetch_paper_list(page: Page) -> Result[List[PaperInfo]]:
 
 async def process_single_paper(
     paper_info: PaperInfo,
-    port: int
+    port: int,
+    tiku_page: Page
 ) -> Result[ProcessResult]:
     """处理单个试卷
     
@@ -128,7 +129,7 @@ async def process_single_paper(
         page_data = await download_page(paper_page)
         
         # 检查是否已存在
-        exists_result, exists_error = await check_paper_exists(paper_page, page_data.name)
+        exists_result, exists_error = await check_paper_exists(tiku_page, page_data.name)
         
         if exists_error is not None:
             return (None, exists_error)
@@ -138,7 +139,7 @@ async def process_single_paper(
             return (ProcessResult.ALREADY_EXISTS, None)
         
         # 保存新试卷
-        await save_new_paper(page_data)
+        await save_new_paper(page_data, tiku_page)
         print(f"✅ 成功处理: {page_data.name}")
         return (ProcessResult.SUCCESS, None)
         
@@ -167,7 +168,8 @@ async def process_single_paper(
 
 async def process_catalogue_page(
     page_number: int,
-    port: int
+    port: int,
+    tiku_page: Page
 ) -> Result[int]:
     """处理单个目录页
     
@@ -195,19 +197,31 @@ async def process_catalogue_page(
         if papers_error is not None:
             return (None, papers_error)
         
+        if papers_result is None:
+            return (None, ProcessError(message="Failed to fetch paper list: result is None"))
+            
         papers: List[PaperInfo] = papers_result
         print(f"📄 Found {len(papers)} papers on page {page_number}")
         
-        # 处理每个试卷
-        for idx, paper in enumerate(papers, 1):
-            print(f"[{idx}/{len(papers)}] Processing: {paper.title}")
-            
-            result, error = await process_single_paper(paper, port)
-            
-            if error is None and result == ProcessResult.SUCCESS:
+        # 处理每个试卷 (并发)
+        print(f"⚡ Starting concurrent processing for {len(papers)} papers...")
+        
+        # 创建任务列表
+        tasks = [
+            process_single_paper(paper, port, tiku_page)
+            for paper in papers
+        ]
+        
+        # 并发执行所有任务
+        results = await asyncio.gather(*tasks)
+        
+        # 统计结果
+        for idx, (single_result, single_error) in enumerate(results):
+            paper = papers[idx]
+            if single_error is None and single_result == ProcessResult.SUCCESS:
                 success_count += 1
-            elif error is not None:
-                print(f"❌ {error}")
+            elif single_error is not None:
+                print(f"❌ Error processing '{paper.title}': {single_error}")
         
         return (success_count, None)
         
@@ -244,6 +258,12 @@ async def main() -> int:
     end_page: int = 466
     debug_port: int = 2001
     total_success: int = 0
+
+    target_url = ""
+    target_title = "题库平台 | 录排中心"
+    browser: Browser
+    tiku_page: Page
+    browser, tiku_page = await connect_to_browser_and_page(target_url=target_url, target_title=target_title,port=2001)
     
     print(f"🚀 Starting paper download process...")
     print(f"📊 Page range: {start_page} - {end_page}")
@@ -251,13 +271,15 @@ async def main() -> int:
     print("=" * 60)
     
     for page_num in range(start_page, end_page):
-        result, error = await process_catalogue_page(page_num, debug_port)
+        result, error = await process_catalogue_page(page_num, debug_port, tiku_page)
         
-        if error is None:
+        if error is None and result is not None:
             total_success += result
             print(f"✅ Page {page_num} completed: {result} papers processed")
-        else:
+        elif error is not None:
             print(f"❌ Page {page_num} failed: {error}")
+        else:
+            print(f"❌ Page {page_num} failed: Unknown error (result is None)")
         
         # 延迟避免请求过快
         await asyncio.sleep(1)
