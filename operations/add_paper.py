@@ -15,8 +15,7 @@ API_BASE_URL = "https://tps-tiku-api.staff.xdf.cn"
 AUTH_HEADERS = {
     "accept": "application/json, text/plain, */*",
     "content-type": "application/json",
-    "cookie": "rem=on; e2e=55B2D1619F0C8CF273169F8F1CA49A93; e2mf=4828c0f88b4e403ea996d598c370b64b; token=4828c0f88b4e403ea996d598c370b64b; XDFUUID=c103d217-b041-3638-2b75-78f550fe65e1",
-    "tikutoken": "732FD8402F95087CD934374135C46EE5",
+    "cookie": "XDFUUID=26142d7c-eecc-a69d-8e72-9c1f4b2c0217; e2e=55B2D1619F0C8CF273169F8F1CA49A93; e2mf=51f0b63db37747ab82e172b74256783a; token=51f0b63db37747ab82e172b74256783a",
     "origin": "https://tk-lpzx.xdf.cn",
     "referer": "https://tk-lpzx.xdf.cn/",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
